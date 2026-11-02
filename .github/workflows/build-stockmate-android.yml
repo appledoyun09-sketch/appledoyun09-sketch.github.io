@@ -1,0 +1,45 @@
+name: Build STOCKMATE Android APK
+on:
+  push:
+    branches:
+      - stockmate-android-build-20261103
+    paths:
+      - "stockmate-android/**"
+      - ".github/workflows/build-stockmate-android.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+      - name: Assemble official Android debug APK
+        working-directory: stockmate-android
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Validate APK signing and package
+        run: |
+          APK=stockmate-android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" | tail -1
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | head -4
+          cp "$APK" STOCKMATE-v3.0-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: STOCKMATE-v3.0-Android-APK
+          path: STOCKMATE-v3.0-Android.apk
+          retention-days: 30
