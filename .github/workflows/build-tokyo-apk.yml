@@ -22,9 +22,11 @@ jobs:
           java-version: '17'
       - name: Verify and install Android SDK packages
         run: |
-          echo "SDK at ${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          command -v sdkmanager || true
-          sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          TOOL="$(find "$SDK/cmdline-tools" -type f -name sdkmanager -print -quit)"
+          echo "sdkmanager: $TOOL"
+          test -n "$TOOL"
+          "$TOOL" --install 'platforms;android-35' 'build-tools;35.0.0'
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
