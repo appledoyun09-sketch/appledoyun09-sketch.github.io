@@ -1,0 +1,19 @@
+{
+  "name": "TOKYO INTELLIGENCE · Travel Control",
+  "short_name": "TOKYO OS",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07121f",
+  "theme_color": "#07121f",
+  "description": "독립형 도쿄 여행 지도·일정·체크리스트·예산·DEMO",
+  "icons": [
+    {
+      "src": "assets/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
