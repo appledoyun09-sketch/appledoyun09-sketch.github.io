@@ -35,7 +35,7 @@ body.focus-mode .app-shell{padding:0;gap:0}body.focus-mode .sidebar,body.focus-m
 @media(max-width:760px){.feature-action{width:35px;height:34px;display:grid;place-items:center;padding:5px}.topbar-actions .text-action{padding:7px}.toolbar{overflow:auto;scrollbar-width:none;justify-content:flex-start}.toolbar::-webkit-scrollbar{display:none}.tool-btn{flex:0 0 auto}.title-input{max-width:24vw}.utility-dialog{padding:18px}.utility-coords{gap:8px}}
 
 </style>
-  <title>Lumi Note — 나만의 필기 공간</title>
+  <title>Lumi Note 1.3 — 나만의 필기 공간</title>
 </head>
 <body data-theme="light">
   <svg xmlns="http://www.w3.org/2000/svg" class="svg-sprite" aria-hidden="true">
@@ -262,7 +262,25 @@ function backgroundCSS(p){if(p.bgImage){el.paper.style.backgroundColor='#ffffff'
 }
 function fitScale(){let p=currentPage();return Math.max(.18,Math.min(1.4,(el.stage.clientWidth-70)/p.w));}
 function applyZoom(){const p=currentPage();if(!p)return;const w=p.w*zoom,h=p.h*zoom;el.shell.style.width=w+'px';el.shell.style.height=h+'px';el.paper.style.width=w+'px';el.paper.style.height=h+'px';el.paper.style.transform='none';backgroundCSS(p);if(textSession){const item=textSession.item;el.editor.style.left=(item.x*zoom)+'px';el.editor.style.top=(item.y*zoom)+'px';el.editor.style.fontSize=(itemTextSize(item)*zoom)+'px';el.editor.style.width=(400*zoom)+'px';el.editor.style.height=(110*zoom)+'px';} $('zoomText').textContent=Math.round(zoom*100)+'%';if(typeof updateObjectPositions==='function')updateObjectPositions();}
-function setZoom(value,holdPoint){let old=zoom;zoom=Math.max(.18,Math.min(6,value));fitZoom=false;applyZoom();if(holdPoint){let stageRect=el.stage.getBoundingClientRect();let relX=holdPoint.x-stageRect.left;let relY=holdPoint.y-stageRect.top;el.stage.scrollLeft=(el.stage.scrollLeft+relX)*(zoom/old)-relX;el.stage.scrollTop=(el.stage.scrollTop+relY)*(zoom/old)-relY;}}
+// Fix zoom jumps by using the actual page geometry instead of scaling scrollLeft.
+function zoomAtPagePoint(value, pagePoint, screenPoint){
+ const nextZoom=Math.max(.18,Math.min(6,Number(value)||zoom));
+ if(Math.abs(nextZoom-zoom)>1e-6){zoom=nextZoom;fitZoom=false;applyZoom();}
+ if(pagePoint&&screenPoint){
+  const pageRect=el.paper.getBoundingClientRect();
+  const deltaX=pageRect.left+pagePoint.x*zoom-screenPoint.x;
+  const deltaY=pageRect.top+pagePoint.y*zoom-screenPoint.y;
+  if(Number.isFinite(deltaX))el.stage.scrollLeft+=deltaX;
+  if(Number.isFinite(deltaY))el.stage.scrollTop+=deltaY;
+ }
+}
+function setZoom(value,holdPoint){
+ const viewport=el.stage.getBoundingClientRect();
+ const anchor=holdPoint||{x:viewport.left+viewport.width/2,y:viewport.top+viewport.height/2};
+ const paperRect=el.paper.getBoundingClientRect();
+ const pagePoint={x:(anchor.x-paperRect.left)/zoom,y:(anchor.y-paperRect.top)/zoom};
+ zoomAtPagePoint(value,pagePoint,anchor);
+}
 function renderPage(forceFit=false){let p=currentPage(),note=currentNote();if(!p)return;
  data.pageIndex=Math.min(Math.max(0,data.pageIndex),note.pages.length-1);
  resizeCanvases();backgroundCSS(p);
@@ -359,11 +377,27 @@ function eraseAt(p){let i=findErasable(p);if(i>=0){if(!pointerActivity.changed){
 function inside(r,p){return r&&p.x>=r.x&&p.x<=r.x+r.w&&p.y>=r.y&&p.y<=r.y+r.h;}
 function moveSelected(dx,dy){if(!dx&&!dy)return;const p=currentPage();for(const item of p.items){if(!selected.includes(item.id))continue;if(item.type==='text'||item.type!=='stroke'){item.x+=dx;item.y+=dy;}else for(const pt of item.points){pt.x+=dx;pt.y+=dy;}}renderInk();renderLive();if(typeof renderObjects==='function')renderObjects();}
 function pointInsidePolygon(p,polygon){let inside=false;for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){let a=polygon[i],b=polygon[j];if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)inside=!inside;}return inside;}
-function touchStart(e){touchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,scrollX:el.stage.scrollLeft,scrollY:el.stage.scrollTop});
- if(touchPointers.size===2){let pts=[...touchPointers.values()];pinch={distance:Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y),startZoom:zoom};}else if(touchPointers.size>2)pinch=null;}
-function touchMove(e){if(!touchPointers.has(e.pointerId))return;let t=touchPointers.get(e.pointerId);t.x=e.clientX;t.y=e.clientY;
- if(touchPointers.size===2&&pinch){let pts=[...touchPointers.values()],distance=Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y);if(pinch.distance>0){setZoom(pinch.startZoom*distance/pinch.distance,{x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2});}}
- else if(touchPointers.size===1){el.stage.scrollLeft=t.scrollX+t.startX-t.x;el.stage.scrollTop=t.scrollY+t.startY-t.y;}}
+function touchStart(e){
+ touchPointers.set(e.pointerId,{x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,scrollX:el.stage.scrollLeft,scrollY:el.stage.scrollTop});
+ if(touchPointers.size===2){
+  const pts=[...touchPointers.values()];
+  const midpoint={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+  const rect=el.paper.getBoundingClientRect();
+  pinch={distance:Math.max(1,Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)),startZoom:zoom,
+   anchor:{x:(midpoint.x-rect.left)/zoom,y:(midpoint.y-rect.top)/zoom}};
+ }else if(touchPointers.size>2)pinch=null;
+}
+function touchMove(e){
+ const t=touchPointers.get(e.pointerId);if(!t)return;t.x=e.clientX;t.y=e.clientY;
+ if(touchPointers.size===2&&pinch){
+  const pts=[...touchPointers.values()],distance=Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y);
+  const midpoint={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+  zoomAtPagePoint(pinch.startZoom*distance/pinch.distance,pinch.anchor,midpoint);
+ }else if(touchPointers.size===1){
+  el.stage.scrollLeft=t.scrollX+t.startX-t.x;
+  el.stage.scrollTop=t.scrollY+t.startY-t.y;
+ }
+}
 function onPointerDown(e){if(e.button!==0 && e.pointerType==='mouse')return;let p=pointFromEvent(e);
  if((e.pointerType==='touch'&&data.settings.penOnly)||tool==='hand'){touchStart(e);try{el.live.setPointerCapture(e.pointerId);}catch(ex){}e.preventDefault();return;}
  if(pointerActivity)return;
@@ -380,7 +414,16 @@ function onPointerMove(e){if(touchPointers.has(e.pointerId)){touchMove(e);e.prev
  else if(pointerActivity.kind==='lasso'){let arr=pointerActivity.points,last=arr[arr.length-1];if(Math.hypot(p.x-last.x,p.y-last.y)>4)arr.push(p);renderLive();}
  else if(pointerActivity.kind==='move'){moveSelected(p.x-pointerActivity.last.x,p.y-pointerActivity.last.y);pointerActivity.last=p;}
  e.preventDefault();}
-function onPointerUp(e){if(touchPointers.has(e.pointerId)){touchPointers.delete(e.pointerId);if(touchPointers.size<2)pinch=null;return;}
+function onPointerUp(e){if(touchPointers.has(e.pointerId)){
+  touchPointers.delete(e.pointerId);
+  if(touchPointers.size<2)pinch=null;
+  if(touchPointers.size===1){
+   const remaining=touchPointers.values().next().value;
+   remaining.startX=remaining.x;remaining.startY=remaining.y;
+   remaining.scrollX=el.stage.scrollLeft;remaining.scrollY=el.stage.scrollTop;
+  }
+  return;
+ }
  if(!pointerActivity||pointerActivity.id!==e.pointerId)return;let activity=pointerActivity;pointerActivity=null;
  if(activity.kind==='draw'){pushHistory();currentPage().items.push(activity.stroke);renderInk();queueSave();}
  else if(activity.kind==='erase'&&activity.changed){queueSave();}
@@ -488,6 +531,9 @@ function registerEvents(){
  $('prevPage').onclick=()=>changePage(data.pageIndex-1);$('nextPage').onclick=()=>changePage(data.pageIndex+1);$('addPage').onclick=addPage;
  $('templateBtn').onclick=()=>el.pop.hidden?openTemplateMenu():closePopover();$('zoomIn').onclick=()=>setZoom(zoom*1.2);$('zoomOut').onclick=()=>setZoom(zoom/1.2);$('zoomFit').onclick=()=>{fitZoom=true;zoom=fitScale();applyZoom();el.stage.scrollTop=0;el.stage.scrollLeft=0;};
  el.live.addEventListener('pointerdown',onPointerDown);el.live.addEventListener('pointermove',onPointerMove);el.live.addEventListener('pointerup',onPointerUp);el.live.addEventListener('pointercancel',onPointerUp);el.live.addEventListener('lostpointercapture',e=>{if(pointerActivity?.id===e.pointerId)onPointerUp(e);});
+ for(const type of ['gesturestart','gesturechange','gestureend']){
+  el.stage.addEventListener(type,e=>{if(e.cancelable)e.preventDefault();},{passive:false});
+ }
  el.editor.addEventListener('blur',()=>commitTextEdit());el.editor.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();commitTextEdit(true);}if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){e.preventDefault();commitTextEdit();}});
  $('modalClose').onclick=()=>closeModal(null);$('modalCancel').onclick=()=>closeModal(null);$('modalConfirm').onclick=()=>{let name=$('modalName')?.value.trim();if(!name){$('modalName').focus();return;}closeModal(name);};$('modalName');el.modal.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('modalConfirm').click();}if(e.key==='Escape')closeModal(null);});
  document.addEventListener('pointerdown',e=>{if(!el.pop.hidden&&!el.pop.contains(e.target)&&!e.target.closest('#moreBtn,#templateBtn,#sidebarSettings'))closePopover();});
