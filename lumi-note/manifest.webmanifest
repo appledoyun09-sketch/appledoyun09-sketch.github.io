@@ -1,7 +1,7 @@
 {
-  "name": "Lumi Note 1.5 — 고해상도 PDF 노트",
+  "name": "Lumi Note 1.6 — iPad 집중 모드",
   "short_name": "Lumi Note",
-  "description": "고해상도 PDF 원본 확대, 애플펜슬 벡터 필기, 삭제 노트 휴지통 복구",
+  "description": "iPadOS 키보드 입력이 가능한 몰입형 집중 모드, 선명한 PDF 및 벡터 필기",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
