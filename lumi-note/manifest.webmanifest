@@ -1,13 +1,14 @@
 {
-  "name": "Lumi Note 1.3 — 나만의 필기 공간",
+  "name": "Lumi Note 1.4 — 나만의 필기 공간",
   "short_name": "Lumi Note",
+  "description": "iPad 벡터 필기, 안정된 두 손가락 확대·이동, OCR 및 학습 객체",
+  "lang": "ko",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#e9edf7",
   "theme_color": "#e9edf7",
-  "description": "벡터 필기, 텍스트 인식, 이미지·지도·인터랙티브 객체가 있는 iPad 노트 앱 — 핀치 줌 안정화",
   "icons": [
     {
       "src": "icon.svg",
