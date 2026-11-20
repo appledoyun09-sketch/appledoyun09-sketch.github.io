@@ -776,5 +776,150 @@ window.lumiZoomEngineVersion='1.4';
 })();
 
 </script>
+<script>(function upgradeLumi15(){
+'use strict';
+const style=document.createElement('style');
+style.textContent=`
+.note-row{display:flex;align-items:stretch;gap:3px;border-radius:13px}.note-row .note-entry{flex:1;min-width:0;width:0}
+.note-delete-action{width:33px;min-width:33px;align-self:center;height:36px;border-radius:10px;color:#9ca6b8;display:grid;place-items:center}
+.note-delete-action svg{width:17px;height:17px}.note-delete-action:hover{background:#fce8ec;color:#d53d55}
+#deleteNoteTop{border-color:rgba(229,81,103,.25);color:#d85468}
+.trash-entry{display:flex;justify-content:space-between;gap:8px;align-items:center;margin:2px 13px 8px;padding:11px 13px;border-radius:12px;color:var(--muted);background:var(--hover);border:1px solid var(--border2);font-size:11px;font-weight:700}
+.trash-row{display:flex;align-items:center;gap:7px;padding:12px 10px;margin:7px 0;border:1px solid var(--border2);background:var(--hover);border-radius:14px}
+.trash-row .trash-name{flex:1;min-width:0}.trash-name strong{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.trash-name small{color:var(--muted)}.trash-action{padding:8px;border-radius:8px;background:rgba(112,114,228,.13);font-weight:750;color:var(--accent);font-size:11px}
+.trash-action.danger{background:rgba(222,71,99,.11);color:#df4864}
+#trashItems{max-height:55dvh;overflow:auto}.lumi-pdf-layer{position:absolute;z-index:1;pointer-events:none;max-width:none;max-height:none}
+@media(max-width:760px){#deleteNoteTop{width:35px;padding:6px;justify-content:center}#deleteNoteTop span{display:none}}
+`;
+document.head.appendChild(style);
+const topDelete=document.createElement('button');topDelete.id='deleteNoteTop';topDelete.className='text-action';topDelete.title='현재 노트 삭제 · 휴지통에서 복구 가능';topDelete.innerHTML='<svg><use href="#i-trash"/></svg><span>삭제</span>';
+document.getElementById('exportBtn')?.before(topDelete);
+const trashOpen=document.createElement('button');trashOpen.id='trashOpen15';trashOpen.className='trash-entry';trashOpen.innerHTML='<span>🗑️ 최근 삭제한 노트</span><span id="trashCount15">0</span>';
+document.getElementById('noteList')?.after(trashOpen);
+const trashOverlay=document.createElement('div');trashOverlay.id='trashOverlay15';trashOverlay.className='utility-overlay';trashOverlay.hidden=true;
+trashOverlay.innerHTML=`<div class="utility-dialog" role="dialog" aria-modal="true" aria-labelledby="trashTitle15"><div class="utility-head"><div><span class="utility-kicker">LUMI NOTE · RECOVERY</span><h2 id="trashTitle15">🗑️ 최근 삭제한 노트</h2></div><button class="utility-close" id="trashExit15" aria-label="닫기">×</button></div><p class="utility-note">노트는 휴지통에서 복구할 수 있습니다. 영구 삭제한 노트는 복구할 수 없습니다.</p><div id="trashItems"></div><div class="utility-footer"><button class="utility-secondary" id="trashClose15">닫기</button><button class="utility-secondary" id="trashEmpty15">휴지통 비우기</button></div></div>`;
+document.body.appendChild(trashOverlay);
+const pdfCanvas=document.createElement('canvas');pdfCanvas.className='lumi-pdf-layer';pdfCanvas.hidden=true;pdfCanvas.id='pdfCanvas15';pdfCanvas.setAttribute('aria-hidden','true');
+el.paper.insertBefore(pdfCanvas,el.paper.firstChild);
+let currentPdfCanvas=pdfCanvas,renderSequence=0,renderTimer=0;
+const pdfDocCache=new Map();
+let pdfDbPromise=null;
+function pdfDB(){if(pdfDbPromise)return pdfDbPromise;pdfDbPromise=new Promise((resolve,reject)=>{
+if(!('indexedDB' in window)){reject(new Error('원본 PDF 저장소를 사용할 수 없습니다.'));return;}
+const req=indexedDB.open('lumi_pdf_assets_v15',1);
+req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains('sources'))req.result.createObjectStore('sources');};
+req.onsuccess=()=>resolve(req.result);
+req.onerror=()=>reject(req.error||new Error('PDF 저장소를 열지 못했습니다.'));
+req.onblocked=()=>showToast('열려 있는 다른 Lumi Note 탭을 닫은 후 다시 시도해 주세요.',6500);
+});return pdfDbPromise;}
+async function putSource(id,bytes,name){const database=await pdfDB();await new Promise((resolve,reject)=>{const tx=database.transaction('sources','readwrite');tx.objectStore('sources').put({bytes,name,createdAt:Date.now()},id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error('저장 공간 부족'));tx.onabort=()=>reject(tx.error||new Error('PDF 저장 실패'));});}
+async function sourceOf(id){const database=await pdfDB();return await new Promise((resolve,reject)=>{let r=database.transaction('sources','readonly').objectStore('sources').get(id);r.onsuccess=()=>r.result?resolve(r.result):reject(new Error('저장된 PDF 원본이 없습니다. 다시 가져와 주세요.'));r.onerror=()=>reject(r.error);});}
+async function removeSource(id){const database=await pdfDB();await new Promise((resolve,reject)=>{const tx=database.transaction('sources','readwrite');tx.objectStore('sources').delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}
+async function pdfDocument(id){if(pdfDocCache.has(id))return pdfDocCache.get(id);
+const source=await sourceOf(id),lib=await loadPdfLib(),buffer=source.bytes instanceof ArrayBuffer?source.bytes:source.bytes.buffer;
+const pending=lib.getDocument({data:new Uint8Array(buffer.slice(0)),useSystemFonts:true}).promise;
+pdfDocCache.set(id,pending);try{return await pending;}catch(e){pdfDocCache.delete(id);throw e;}}
+async function pdfDraw(ctx,page,scale){const pdfPage=await(await pdfDocument(page.pdfSourceId)).getPage(page.pdfPageNum),view=pdfPage.getViewport({scale:1});
+await pdfPage.render({canvasContext:ctx,viewport:pdfPage.getViewport({scale:page.w*scale/view.width}),background:'#fff'}).promise;}
+function schedulePdf(){clearTimeout(renderTimer);++renderSequence;const page=currentPage();
+if(!page?.pdfSourceId){currentPdfCanvas.hidden=true;return;}
+if(currentPdfCanvas.dataset.pdf!==page.pdfSourceId+':'+page.pdfPageNum)currentPdfCanvas.hidden=true;
+renderTimer=setTimeout(renderPdfTile,130);}
+async function renderPdfTile(){const page=currentPage();if(!page?.pdfSourceId)return;
+const token=++renderSequence,rect=el.paper.getBoundingClientRect(),stage=el.stage.getBoundingClientRect(),extra=160;
+const x=Math.max(0,Math.floor(stage.left-rect.left-extra)),y=Math.max(0,Math.floor(stage.top-rect.top-extra));
+const x2=Math.min(page.w*zoom,Math.ceil(stage.right-rect.left+extra)),y2=Math.min(page.h*zoom,Math.ceil(stage.bottom-rect.top+extra));
+if(x2<=x||y2<=y)return;
+const w=x2-x,h=y2-y;
+let dpr=Math.min(2.5,window.devicePixelRatio||1,Math.sqrt(9000000/(w*h)),4096/Math.max(w,h));dpr=Math.max(.45,dpr);
+const canvas=document.createElement('canvas');canvas.id='pdfCanvas15';canvas.className='lumi-pdf-layer';canvas.setAttribute('aria-hidden','true');canvas.dataset.pdf=page.pdfSourceId+':'+page.pdfPageNum;
+canvas.width=Math.max(1,Math.ceil(w*dpr));canvas.height=Math.max(1,Math.ceil(h*dpr));canvas.style.left=x+'px';canvas.style.top=y+'px';canvas.style.width=w+'px';canvas.style.height=h+'px';
+try{const doc=await pdfDocument(page.pdfSourceId),pdf=await doc.getPage(page.pdfPageNum);
+if(token!==renderSequence||currentPage()?.id!==page.id)return;
+const base=pdf.getViewport({scale:1}),viewport=pdf.getViewport({scale:page.w*zoom*dpr/base.width});
+await pdf.render({canvasContext:canvas.getContext('2d',{alpha:false}),viewport,transform:[1,0,0,1,-x*dpr,-y*dpr],background:'#fff'}).promise;
+if(token!==renderSequence||currentPage()?.id!==page.id)return;
+currentPdfCanvas.replaceWith(canvas);currentPdfCanvas=canvas;
+}catch(e){if(token===renderSequence){console.warn(e);showToast('PDF 렌더링 오류: '+e.message,5000);}}}
+convertPDF=async function(file){const lib=await loadPdfLib(),bytes=await file.arrayBuffer();
+const doc=await lib.getDocument({data:new Uint8Array(bytes.slice(0)),useSystemFonts:true}).promise,id=uid(),pages=[],limit=Math.min(doc.numPages,100);
+for(let i=1;i<=limit;i++){el.saveStatus.textContent=`PDF 페이지 확인 ${i}/${limit}`;const page=await doc.getPage(i),v=page.getViewport({scale:1}),ratio=v.width/v.height,w=ratio>1?1684:1190;
+pages.push({id:uid(),w,h:Math.max(300,Math.round(w/ratio)),template:'plain',items:[],bgImage:null,pdfSourceId:id,pdfPageNum:i});}
+await putSource(id,bytes,file.name);pdfDocCache.set(id,Promise.resolve(doc));
+if(doc.numPages>limit)showToast(`PDF 앞 ${limit}페이지만 불러왔습니다.`,5000);
+return pages;};
+const originalApplyZoom=applyZoom;
+applyZoom=function(){originalApplyZoom();schedulePdf();};
+const originalRenderPage=renderPage;
+renderPage=function(...args){originalRenderPage(...args);const page=currentPage();if(page?.pdfSourceId)document.getElementById('templateLabel').textContent='PDF · 선명한 원본';schedulePdf();};
+el.stage.addEventListener('scroll',schedulePdf,{passive:true});
+const oldMakePageJPEG=makePageJPEG;
+makePageJPEG=async function(page){if(!page.pdfSourceId)return oldMakePageJPEG(page);
+const factor=Math.min(2,Math.sqrt(11000000/(page.w*page.h))),canvas=document.createElement('canvas');
+canvas.width=Math.round(page.w*factor);canvas.height=Math.round(page.h*factor);
+const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
+await pdfDraw(ctx,page,factor);
+ctx.save();ctx.scale(factor,factor);
+if(typeof exportObjectToCanvas==='function')await exportObjectToCanvas(ctx,page);
+for(const item of page.items)if(item.type==='text')drawItem(ctx,item);
+ctx.restore();
+const jpg=canvas.toDataURL('image/jpeg',.94);
+const answer={page,bytes:Uint8Array.from(atob(jpg.split(',')[1]),c=>c.charCodeAt(0)),w:canvas.width,h:canvas.height};
+canvas.width=canvas.height=1;return answer;};
+const previousOcr=drawOcrCanvas;
+drawOcrCanvas=async function(mode){const page=currentPage();if(!page?.pdfSourceId||mode==='ink')return previousOcr(mode);
+const scale=Math.min(2,2500/page.w),canvas=document.createElement('canvas');canvas.width=Math.round(page.w*scale);canvas.height=Math.round(page.h*scale);
+const ctx=canvas.getContext('2d',{alpha:false});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
+await pdfDraw(ctx,page,scale);ctx.save();ctx.scale(scale,scale);
+for(const it of page.items){if(it.type==='stroke'&&mode!=='image')drawStroke(ctx,it);if(it.type==='image'&&it.src){try{ctx.drawImage(await loadImage(it.src),it.x,it.y,it.w,it.h);}catch(_){}}}ctx.restore();return canvas;};
+function deleted(){data.trash??=[];return data.trash;}
+function activeRefs(){return new Set([...data.notes,...deleted()].flatMap(n=>n.pages.map(p=>p.pdfSourceId).filter(Boolean)));}
+async function removeOrphans(ids){const keep=activeRefs();for(const id of new Set(ids))if(!keep.has(id)){pdfDocCache.delete(id);await removeSource(id).catch(console.warn);}}
+async function deleteById(id){const n=data.notes.find(x=>x.id===id);if(!n)return;
+if(!confirm(`「${n.title}」 (${n.pages.length}페이지) 노트를 휴지통으로 이동할까요?\n휴지통에서 복구할 수 있습니다.`))return;
+commitTextEdit();deleted().unshift({...n,deletedAt:Date.now()});data.notes=data.notes.filter(x=>x.id!==id);
+if(data.activeNoteId===id){let next=data.notes.find(x=>x.notebookId===n.notebookId)||data.notes[0];if(!next){next=makeNote(n.notebookId);data.notes.push(next);}data.activeNoteId=next.id;data.activeNotebookId=next.notebookId;data.pageIndex=0;}
+undoMap.clear();redoMap.clear();selected=[];renderAll(true);await saveImmediately();showToast('노트를 휴지통으로 이동했습니다.');}
+deleteCurrentNote=function(){return deleteById(currentNote()?.id);};
+const earlierLibrary=renderLibrary;
+renderLibrary=function(){data.trash??=[];earlierLibrary();
+for(const btn of el.noteList.querySelectorAll('button[data-note]')){const row=document.createElement('div');row.className='note-row';
+const del=document.createElement('button');del.className='note-delete-action';del.title='이 노트 삭제';del.setAttribute('aria-label','노트 삭제');
+del.innerHTML='<svg><use href="#i-trash"/></svg>';del.onclick=e=>{e.stopPropagation();deleteById(btn.dataset.note);};
+btn.replaceWith(row);row.append(btn,del);}
+document.getElementById('trashCount15').textContent=String(deleted().length);};
+function showTrash(){closePopover();trashOverlay.hidden=false;refreshTrash();}
+function hideTrash(){trashOverlay.hidden=true;}
+function refreshTrash(){const items=document.getElementById('trashItems');items.innerHTML=deleted().length?deleted().map(n=>`<div class="trash-row"><span class="trash-name"><strong>${escapeHTML(n.title)}</strong><small>${n.pages.length}페이지 · ${formatDate(n.deletedAt)}</small></span><button class="trash-action" data-restore="${n.id}">복구</button><button class="trash-action danger" data-remove="${n.id}">영구 삭제</button></div>`).join(''):'<div class="empty-notes">휴지통이 비어 있습니다.</div>';
+document.getElementById('trashEmpty15').disabled=!deleted().length;
+items.querySelectorAll('[data-restore]').forEach(b=>b.onclick=async()=>{const i=deleted().findIndex(n=>n.id===b.dataset.restore);if(i<0)return;const [n]=deleted().splice(i,1);delete n.deletedAt;data.notes.push(n);data.activeNoteId=n.id;data.activeNotebookId=n.notebookId;data.pageIndex=0;renderAll(true);await saveImmediately();hideTrash();showToast('노트를 복구했습니다.');});
+items.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{const n=deleted().find(n=>n.id===b.dataset.remove);if(!n||!confirm(`「${n.title}」 노트를 영구 삭제할까요? 복구할 수 없습니다.`))return;
+data.trash=deleted().filter(x=>x.id!==n.id);await saveImmediately();await removeOrphans(n.pages.map(p=>p.pdfSourceId).filter(Boolean));renderLibrary();refreshTrash();showToast('영구 삭제했습니다.');});}
+topDelete.onclick=()=>deleteCurrentNote();trashOpen.onclick=showTrash;
+document.getElementById('trashExit15').onclick=hideTrash;
+document.getElementById('trashClose15').onclick=hideTrash;
+document.getElementById('trashEmpty15').onclick=async()=>{if(!deleted().length||!confirm(`휴지통의 ${deleted().length}개 노트를 영구 삭제할까요?`))return;
+const refs=deleted().flatMap(n=>n.pages.map(p=>p.pdfSourceId).filter(Boolean));data.trash=[];await saveImmediately();await removeOrphans(refs);renderLibrary();refreshTrash();};
+const originalSettings=openSettings;
+openSettings=function(){originalSettings();const button=el.pop.querySelector('[data-action="delete"]');if(button)button.innerHTML='현재 노트 휴지통으로 <svg><use href="#i-trash"/></svg>';
+const trashButton=document.createElement('button');trashButton.className='popover-entry';trashButton.textContent='🗑️ 최근 삭제한 노트 · 복구';trashButton.onclick=showTrash;
+button?.after(trashButton);};
+const base64FromBuffer=buf=>{const u=new Uint8Array(buf),step=0x8000;let txt='';for(let i=0;i<u.length;i+=step)txt+=String.fromCharCode.apply(null,u.subarray(i,i+step));return btoa(txt);};
+const bufferFromBase64=s=>{const text=atob(s),out=new Uint8Array(text.length);for(let i=0;i<text.length;i++)out[i]=text.charCodeAt(i);return out.buffer;};
+backupJSON=async function(){await saveImmediately();const snapshot=copy(data),ids=[...activeRefs()];snapshot._pdfSources=[];
+try{for(const id of ids){const source=await sourceOf(id);snapshot._pdfSources.push({id,name:source.name,base64:base64FromBuffer(source.bytes)});}
+downloadBlob(new Blob([JSON.stringify(snapshot)],{type:'application/json'}),'LumiNote_백업_'+new Date().toISOString().slice(0,10)+'.json');showToast('PDF 원본까지 포함해 백업했습니다.');}
+catch(e){showToast('백업 오류: '+e.message,5500);}};
+el.backup.addEventListener('change',async e=>{if(!e.target.files?.length)return;e.stopImmediatePropagation();
+try{const obj=JSON.parse(await e.target.files[0].text());
+if(!Array.isArray(obj.notes)||!obj.notes.length||!Array.isArray(obj.notebooks))throw Error('올바른 백업 파일이 아닙니다.');
+if(!confirm('현재 노트 데이터를 백업 내용으로 교체할까요?'))return;
+for(const asset of obj._pdfSources||[])await putSource(asset.id,bufferFromBase64(asset.base64),asset.name||'백업 PDF');
+delete obj._pdfSources;data=obj;data.trash??=[];data.settings??={dark:false,penOnly:true};data.pageIndex=0;pdfDocCache.clear();undoMap.clear();redoMap.clear();renderAll(true);await saveImmediately();showToast('PDF 원본을 포함해 복구했습니다.');
+}catch(error){showToast('복구 실패: '+error.message,4500);}finally{el.backup.value='';}},true);
+window.lumiZoomEngineVersion='1.5';
+window.lumiPdfQuality='dynamic-original';
+})();</script>
 </body>
 </html>
