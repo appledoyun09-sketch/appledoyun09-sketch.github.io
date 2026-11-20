@@ -36,7 +36,7 @@ body.focus-mode .app-shell{padding:0;gap:0}body.focus-mode .sidebar,body.focus-m
 @media(max-width:760px){.feature-action{width:35px;height:34px;display:grid;place-items:center;padding:5px}.topbar-actions .text-action{padding:7px}.toolbar{overflow:auto;scrollbar-width:none;justify-content:flex-start}.toolbar::-webkit-scrollbar{display:none}.tool-btn{flex:0 0 auto}.title-input{max-width:24vw}.utility-dialog{padding:18px}.utility-coords{gap:8px}}
 
 </style>
-  <title>Lumi Note — 나만의 필기 공간</title>
+  <title>Lumi Note 1.6 — iPad 키보드 호환 집중 모드</title>
 </head>
 <body data-theme="light">
   <svg xmlns="http://www.w3.org/2000/svg" class="svg-sprite" aria-hidden="true">
@@ -100,7 +100,7 @@ body.focus-mode .app-shell{padding:0;gap:0}body.focus-mode .sidebar,body.focus-m
           <button class="text-action feature-action" id="insertBtn" title="이미지·지도·학습 도구 삽입"><svg><use href="#i-add"/></svg><span>삽입</span></button>
           <button class="text-action feature-action" id="ocrBtn" title="텍스트 인식"><svg><use href="#i-spark"/></svg><span>텍스트 인식</span></button>
           <button class="text-action" id="exportBtn"><svg><use href="#i-download"/></svg><span>PDF 저장</span></button>
-          <button class="icon-button feature-icon" id="focusBtn" title="전체화면 집중 모드" aria-label="전체화면"><svg><use href="#i-maximize"/></svg></button>
+          <button class="icon-button feature-icon" id="focusBtn" title="집중 모드 · 키보드 입력 지원" aria-label="집중 모드"><svg><use href="#i-maximize"/></svg></button>
           <button class="icon-button" id="themeBtn" title="다크 모드 전환"><svg><use href="#i-moon"/></svg></button>
           <button class="icon-button" id="moreBtn" title="설정"><svg><use href="#i-more"/></svg></button>
         </div>
@@ -621,7 +621,19 @@ async function searchMap(){const q=$('mapSearch').value.trim();if(q.length<2){sh
  $('mapMatches').innerHTML=places.map((it,i)=>`<button class="map-result" data-match="${i}">${escapeHTML(it.display_name||'지명 없음')}</button>`).join('');$('mapMatches').querySelectorAll('button').forEach((n,i)=>n.onclick=()=>{let item=places[i];$('mapLatitude').value=Number(item.lat).toFixed(6);$('mapLongitude').value=Number(item.lon).toFixed(6);$('mapLabel').value=(item.name||item.display_name||q).split(',')[0].slice(0,55);$('mapMatches').querySelectorAll('button').forEach(x=>x.classList.remove('active'));n.classList.add('active');});
  }catch(e){$('mapMatches').textContent='온라인 지도 검색에 실패했습니다. 위도와 경도를 직접 입력할 수 있습니다.';console.warn(e);}finally{btn.disabled=false;}}
 function addMapFromDialog(){let lat=validateMapNumber($('mapLatitude').value,-90,90),lon=validateMapNumber($('mapLongitude').value,-180,180);if(lat===null||lon===null){showToast('유효한 위도(−90~90), 경도(−180~180)를 입력하세요.');return;}appendObject({type:'map',label:$('mapLabel').value.trim().slice(0,65)||'지도',lat,lon,mapZoom:13,w:610,h:430});closeMapDialog();}
-function toggleFocus(){const active=!document.body.classList.contains('focus-mode');document.body.classList.toggle('focus-mode',active);showSidebar(false);if(active){if(document.documentElement.requestFullscreen){document.documentElement.requestFullscreen().catch(()=>{});}showToast('집중 전체화면 모드 · 오른쪽 위 종료 버튼');}else{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});}setTimeout(()=>{if(fitZoom){zoom=fitScale();applyZoom();}},80);}
+// iPad Safari WebKit: the Fullscreen API blocks typing and may trigger the
+// anti-phishing "fake keyboard" warning even during normal touch interaction.
+// Keep focus mode as a viewport-filling CSS layout, NOT an API fullscreen.
+function toggleFocus(){
+ const active=!document.body.classList.contains('focus-mode');
+ if(document.fullscreenElement && document.exitFullscreen){
+  document.exitFullscreen().catch(()=>{});
+ }
+ document.body.classList.toggle('focus-mode',active);
+ showSidebar(false);
+ if(active)showToast('집중 모드 · 텍스트 입력 가능 · 오른쪽 위에서 종료');
+ setTimeout(()=>{if(fitZoom){zoom=fitScale();applyZoom();}},80);
+}
 function updateTimerClocks(){if(!data)return;for(const node of objectLayer.querySelectorAll('[data-timer-clock]')){let frame=node.closest('.object-frame'),it=objectItems().find(o=>o.id===frame?.dataset.objectId);if(!it)continue;node.textContent=formatSeconds(timerRemaining(it));if(it.endsAt&&Date.now()>=it.endsAt){it.endsAt=null;it.remainingSeconds=0;node.textContent='00:00';let btn=frame.querySelector('[data-object-action="timer-toggle"]');if(btn)btn.textContent='시작';queueSave();showToast('집중 타이머 완료! ⏰',4200);if(navigator.vibrate)navigator.vibrate([150,80,150]);}}}
 function updateGraphFrame(frame,it){const plot=frame?.querySelector('[data-graph-plot]'),label=frame?.querySelector('[data-graph-formula]');if(plot)plot.innerHTML=graphSvgMarkup(it);if(label)label.textContent=graphFormula(it);frame?.querySelectorAll('[data-graph-label]').forEach(n=>n.textContent=Number(it[n.dataset.graphLabel]||0).toFixed(2));}
 function handleObjectClick(e){const target=e.target.closest('[data-object-action]');if(!target)return;const frame=target.closest('.object-frame'),it=objectItems().find(o=>o.id===frame?.dataset.objectId);if(!it)return;const act=target.dataset.objectAction;if(act==='timer-minutes')return;e.preventDefault();e.stopPropagation();
