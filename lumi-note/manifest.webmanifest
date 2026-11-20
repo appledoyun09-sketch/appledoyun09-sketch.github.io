@@ -1,7 +1,7 @@
 {
-  "name": "Lumi Note 1.4 — 나만의 필기 공간",
+  "name": "Lumi Note 1.5 — 고해상도 PDF 노트",
   "short_name": "Lumi Note",
-  "description": "iPad 벡터 필기, 안정된 두 손가락 확대·이동, OCR 및 학습 객체",
+  "description": "고해상도 PDF 원본 확대, 애플펜슬 벡터 필기, 삭제 노트 휴지통 복구",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",
