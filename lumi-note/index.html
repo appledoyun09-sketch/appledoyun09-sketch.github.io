@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Lumi Note" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="icon" type="image/png" href="icons/icon-192.png" />
   <style>
 :root{--ink:#22283c;--muted:#8b93a7;--muted2:#adb4c2;--panel:rgba(255,255,255,.72);--glass:rgba(255,255,255,.66);--hover:rgba(124,131,178,.09);--border:rgba(255,255,255,.85);--border2:rgba(80,95,150,.10);--accent:#6b71eb;--accent2:#958cfb;--shadow:0 14px 52px rgba(83,94,137,.10),inset 0 1px rgba(255,255,255,.96);--small-shadow:0 6px 25px rgba(84,98,148,.11);--stage:#e9edf7;--paper-shadow:0 8px 26px rgba(34,45,77,.095),0 30px 90px rgba(34,45,77,.08);color-scheme:light}
@@ -35,7 +36,7 @@ body.focus-mode .app-shell{padding:0;gap:0}body.focus-mode .sidebar,body.focus-m
 @media(max-width:760px){.feature-action{width:35px;height:34px;display:grid;place-items:center;padding:5px}.topbar-actions .text-action{padding:7px}.toolbar{overflow:auto;scrollbar-width:none;justify-content:flex-start}.toolbar::-webkit-scrollbar{display:none}.tool-btn{flex:0 0 auto}.title-input{max-width:24vw}.utility-dialog{padding:18px}.utility-coords{gap:8px}}
 
 </style>
-  <title>Lumi Note 1.3 — 나만의 필기 공간</title>
+  <title>Lumi Note — 나만의 필기 공간</title>
 </head>
 <body data-theme="light">
   <svg xmlns="http://www.w3.org/2000/svg" class="svg-sprite" aria-hidden="true">
@@ -262,7 +263,9 @@ function backgroundCSS(p){if(p.bgImage){el.paper.style.backgroundColor='#ffffff'
 }
 function fitScale(){let p=currentPage();return Math.max(.18,Math.min(1.4,(el.stage.clientWidth-70)/p.w));}
 function applyZoom(){const p=currentPage();if(!p)return;const w=p.w*zoom,h=p.h*zoom;el.shell.style.width=w+'px';el.shell.style.height=h+'px';el.paper.style.width=w+'px';el.paper.style.height=h+'px';el.paper.style.transform='none';backgroundCSS(p);if(textSession){const item=textSession.item;el.editor.style.left=(item.x*zoom)+'px';el.editor.style.top=(item.y*zoom)+'px';el.editor.style.fontSize=(itemTextSize(item)*zoom)+'px';el.editor.style.width=(400*zoom)+'px';el.editor.style.height=(110*zoom)+'px';} $('zoomText').textContent=Math.round(zoom*100)+'%';if(typeof updateObjectPositions==='function')updateObjectPositions();}
-// Fix zoom jumps by using the actual page geometry instead of scaling scrollLeft.
+// Keep one logical point of the page attached to its screen position, even when
+// the stage changes between centered and scrollable layouts. CSS centering and
+// stage padding make scrollLeft * zoomRatio an incorrect camera transform.
 function zoomAtPagePoint(value, pagePoint, screenPoint){
  const nextZoom=Math.max(.18,Math.min(6,Number(value)||zoom));
  if(Math.abs(nextZoom-zoom)>1e-6){zoom=nextZoom;fitZoom=false;applyZoom();}
@@ -392,6 +395,7 @@ function touchMove(e){
  if(touchPointers.size===2&&pinch){
   const pts=[...touchPointers.values()],distance=Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y);
   const midpoint={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+  // The midpoint may move as well as the distance: this is pinch + pan in one gesture.
   zoomAtPagePoint(pinch.startZoom*distance/pinch.distance,pinch.anchor,midpoint);
  }else if(touchPointers.size===1){
   el.stage.scrollLeft=t.scrollX+t.startX-t.x;
@@ -417,6 +421,8 @@ function onPointerMove(e){if(touchPointers.has(e.pointerId)){touchMove(e);e.prev
 function onPointerUp(e){if(touchPointers.has(e.pointerId)){
   touchPointers.delete(e.pointerId);
   if(touchPointers.size<2)pinch=null;
+  // Rebase the remaining finger after a pinch; its old touch-start scroll origin
+  // is no longer valid and otherwise causes a sudden pan on the next move.
   if(touchPointers.size===1){
    const remaining=touchPointers.values().next().value;
    remaining.startX=remaining.x;remaining.startY=remaining.y;
@@ -531,6 +537,8 @@ function registerEvents(){
  $('prevPage').onclick=()=>changePage(data.pageIndex-1);$('nextPage').onclick=()=>changePage(data.pageIndex+1);$('addPage').onclick=addPage;
  $('templateBtn').onclick=()=>el.pop.hidden?openTemplateMenu():closePopover();$('zoomIn').onclick=()=>setZoom(zoom*1.2);$('zoomOut').onclick=()=>setZoom(zoom/1.2);$('zoomFit').onclick=()=>{fitZoom=true;zoom=fitScale();applyZoom();el.stage.scrollTop=0;el.stage.scrollLeft=0;};
  el.live.addEventListener('pointerdown',onPointerDown);el.live.addEventListener('pointermove',onPointerMove);el.live.addEventListener('pointerup',onPointerUp);el.live.addEventListener('pointercancel',onPointerUp);el.live.addEventListener('lostpointercapture',e=>{if(pointerActivity?.id===e.pointerId)onPointerUp(e);});
+ // iPad Safari may also emit native gesture events. Stop the browser itself
+ // zooming the viewport while the note canvas handles the two-finger pinch.
  for(const type of ['gesturestart','gesturechange','gestureend']){
   el.stage.addEventListener(type,e=>{if(e.cancelable)e.preventDefault();},{passive:false});
  }
@@ -672,6 +680,100 @@ function setupEnhancements(){if(!objectLayer)return;
  if(data)renderObjects();else setTimeout(()=>{if(data)renderObjects();},350);
 }
 setupEnhancements();
+
+</script>
+<script>
+/* Lumi Note 1.4 -- bounded camera space + unified iPad touch controller.
+ * No changes to persisted notes, ink vectors or object data.
+ */
+(function(){
+'use strict';
+const style = document.createElement('style');
+style.textContent = `
+.stage,.stage-content,.page-shell,.paper,.drawing-canvas{touch-action:none!important;overscroll-behavior:contain;overflow-anchor:none}
+.stage{scroll-behavior:auto!important;-webkit-overflow-scrolling:auto}
+.stage-content{display:block!important;position:relative!important;min-width:0!important;min-height:0!important;box-sizing:border-box!important;padding:0!important;justify-content:initial!important;align-items:initial!important}
+.page-shell{position:absolute!important;flex:none!important;margin:0!important}
+`;
+document.head.appendChild(style);
+let gutterX=0,gutterY=0,touchDrawId=null,touchSequencePan=false;
+const originalApplyZoom=applyZoom;
+applyZoom=function(){
+ originalApplyZoom();
+ const p=currentPage();if(!p)return;
+ const sw=Math.max(1,el.stage.clientWidth),sh=Math.max(1,el.stage.clientHeight);
+ gutterX=Math.max(1200,sw+256);
+ gutterY=Math.max(1200,sh+256);
+ el.stageContent.style.width=(p.w*zoom+2*gutterX)+'px';
+ el.stageContent.style.height=(p.h*zoom+2*gutterY)+'px';
+ el.shell.style.left=gutterX+'px';el.shell.style.top=gutterY+'px';
+};
+function pageFromScreen(screen){const rect=el.stage.getBoundingClientRect();return{x:(el.stage.scrollLeft+screen.x-rect.left-gutterX)/zoom,y:(el.stage.scrollTop+screen.y-rect.top-gutterY)/zoom};}
+function positionPagePoint(p,screen){const rect=el.stage.getBoundingClientRect();let sx=gutterX+p.x*zoom-(screen.x-rect.left);let sy=gutterY+p.y*zoom-(screen.y-rect.top);if(Number.isFinite(sx)&&Number.isFinite(sy)){el.stage.scrollLeft=sx;el.stage.scrollTop=sy;}}
+function centerPaper(){const p=currentPage();if(!p)return;el.stage.scrollLeft=gutterX+p.w*zoom/2-el.stage.clientWidth/2;el.stage.scrollTop=gutterY-18;}
+zoomAtPagePoint=function(value, pagePoint, screenPoint){
+ const next=Math.max(.18,Math.min(6,Number(value)||zoom));
+ if(Math.abs(next-zoom)>1e-6){zoom=next;fitZoom=false;applyZoom();}
+ if(pagePoint&&screenPoint)positionPagePoint(pagePoint,screenPoint);
+};
+setZoom=function(value,holdPoint){
+ const r=el.stage.getBoundingClientRect();
+ const anchor=holdPoint||{x:r.left+r.width/2,y:r.top+r.height/2};
+ zoomAtPagePoint(value,pageFromScreen(anchor),anchor);
+};
+const originalRenderPage=renderPage;
+renderPage=function(forceFit=false){originalRenderPage(forceFit);if(forceFit)centerPaper();};
+// Capture all finger interactions once, at the scroll stage. Avoid Safari's
+// native inertial scrolling and independent SVG/browser pinch recognition.
+function usableTouchTarget(target){return !(tool==='object'&&target.closest?.('.object-frame'))&&!target.closest?.('textarea,input,button,[contenteditable]');}
+function intercept(e){if(e.cancelable)e.preventDefault();e.stopPropagation();}
+function pointerDown(e){
+ if(e.pointerType!=='touch'||!usableTouchTarget(e.target))return;
+ intercept(e);
+ if(touchPointers.size===0)touchSequencePan=!!data.settings.penOnly||tool==='hand'||e.target!==el.live;
+ if(touchPointers.size===1&&touchDrawId!==null){pointerActivity=null;touchDrawId=null;touchSequencePan=true;renderLive();}
+ touchStart(e);
+ if(touchPointers.size===1&&!touchSequencePan){touchDrawId=e.pointerId;onPointerDown(e);}
+ try{el.stage.setPointerCapture(e.pointerId);}catch(_){}
+}
+function pointerMove(e){
+ if(e.pointerType!=='touch'||!touchPointers.has(e.pointerId))return;
+ intercept(e);
+ if(touchDrawId===e.pointerId&&!touchSequencePan){
+  const t=touchPointers.get(e.pointerId);t.x=e.clientX;t.y=e.clientY;
+  touchPointers.delete(e.pointerId);
+  try{onPointerMove(e);}finally{touchPointers.set(e.pointerId,t);}
+ }else touchMove(e);
+}
+function pointerEnd(e){
+ if(e.pointerType!=='touch'||!touchPointers.has(e.pointerId))return;
+ intercept(e);
+ if(touchDrawId===e.pointerId&&!touchSequencePan){
+   touchPointers.delete(e.pointerId);
+   touchDrawId=null;
+   if(e.type==='pointercancel'){pointerActivity=null;renderLive();}
+   else onPointerUp(e);
+ }else onPointerUp(e);
+ if(touchPointers.size===0){pinch=null;touchSequencePan=false;touchDrawId=null;}
+}
+el.stage.addEventListener('pointerdown',pointerDown,true);
+el.stage.addEventListener('pointermove',pointerMove,true);
+el.stage.addEventListener('pointerup',pointerEnd,true);
+el.stage.addEventListener('pointercancel',pointerEnd,true);
+el.stage.addEventListener('lostpointercapture',pointerEnd,true);
+el.stage.addEventListener('touchmove',e=>{if(e.cancelable&&usableTouchTarget(e.target))e.preventDefault();},{passive:false,capture:true});
+for(const type of ['gesturestart','gesturechange','gestureend'])window.addEventListener(type,e=>{if(el.stage.contains(e.target)&&e.cancelable)e.preventDefault();},{passive:false,capture:true});
+const zoomFitBtn=document.getElementById('zoomFit');
+zoomFitBtn?.addEventListener('click',e=>{intercept(e);fitZoom=true;zoom=fitScale();applyZoom();centerPaper();},true);
+window.addEventListener('blur',()=>{touchPointers.clear();pinch=null;touchDrawId=null;touchSequencePan=false;});
+window.addEventListener('resize',()=>{if(fitZoom)requestAnimationFrame(centerPaper);});
+const originalToggleFocus=toggleFocus;
+toggleFocus=function(){originalToggleFocus();setTimeout(()=>{if(fitZoom){applyZoom();centerPaper();}},155);};
+// Restore a predictable initial camera even if boot raced this patch.
+function ready(){if(!currentPage())return;applyZoom();centerPaper();}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else requestAnimationFrame(ready);
+window.lumiZoomEngineVersion='1.4';
+})();
 
 </script>
 </body>
