@@ -1,0 +1,19 @@
+{
+  "name": "Lumi Note - 나만의 필기 공간",
+  "short_name": "Lumi Note",
+  "description": "iPad 애플펜슬 학습 필기 웹앱",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e9edf7",
+  "theme_color": "#e9edf7",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
