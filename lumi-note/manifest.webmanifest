@@ -1,14 +1,14 @@
 {
-  "name": "Lumi Note 1.6 — iPad 집중 모드",
+  "name": "Lumi Note 1.7 — 스마트 학습 노트",
   "short_name": "Lumi Note",
-  "description": "iPadOS 키보드 입력이 가능한 몰입형 집중 모드, 선명한 PDF 및 벡터 필기",
   "lang": "ko",
+  "description": "고해상도 PDF·벡터 필기·OCR·통합 검색·즐겨찾기·페이지 구성·학습 도구를 제공하는 iPad 노트 앱",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#e9edf7",
   "theme_color": "#e9edf7",
+  "background_color": "#e9edf7",
   "icons": [
     {
       "src": "icon.svg",
