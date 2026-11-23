@@ -3,7 +3,7 @@
 <head>
   <!-- 기본 메타 정보 및 반응형 뷰포트 설정 -->
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>LumiNote 1.18 — 필기·학습·여행을 연결하는 감성적인 올인원 웹 노트</title>
   <meta name="description" content="디지털 손글씨 필기, 한·영 기기 내 OCR, 인터랙티브 지도, 암기 카드, 주간 학습 플래너, 여행 전용 플래너까지. Study. Plan. Travel. All in LumiNote." />
 
@@ -32,6 +32,55 @@
       }
     };
   </script>
+
+  <!-- Responsive mobile interaction and safe-area improvements (v1.18) -->
+  <meta name="theme-color" content="#f8fafc" />
+  <meta name="format-detection" content="telephone=no" />
+  <style id="luminote-mobile-ux">
+    :root { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    html { scroll-padding-top: calc(5.5rem + env(safe-area-inset-top, 0px)); }
+    body { min-width: 280px; overscroll-behavior-x: none; }
+    main, section, article, .grid > * { min-width: 0; }
+    a, button, input[type="checkbox"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    a, button { -webkit-touch-callout: none; }
+    :where(button, a, input):focus-visible { outline: 3px solid #818cf8; outline-offset: 3px; }
+    #legalContentBody { overflow-wrap: anywhere; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    #legalModal [data-legal-tab] { flex-shrink: 0; }
+    .luminote-legal-panel { max-height: 88vh; max-height: min(88dvh, calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))); }
+    @media (max-width: 1023px) {
+      header { padding-top: env(safe-area-inset-top, 0px); }
+      #mobileMenu { max-height: min(70dvh, 560px); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+      #mobileMenu a, #mobileMenu button { min-height: 44px; }
+    }
+    @media (max-width: 639px) {
+      body { padding-bottom: calc(75px + env(safe-area-inset-bottom, 0px)); }
+      #previewModeTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; max-width: 100%; }
+      #previewModeTabs button { min-width: 0; min-height: 56px; padding: 9px 4px; line-height: 1.4; white-space: normal; overflow-wrap: anywhere; }
+      #specTabNav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 100%; }
+      #specTabNav button { min-width: 0; min-height: 48px; padding: 8px; white-space: normal; line-height: 1.35; }
+      #notePreviewContent, #studyPreviewContent, #travelPreviewContent { padding: 1rem; }
+      #previewBadge { max-width: 60%; overflow-wrap: anywhere; text-align: right; line-height: 1.3; }
+      #preview button, #all-features button, #notePreviewContent button, #legalModal button { min-height: 44px; }
+      #studyChecklist label { flex-wrap: wrap; }
+      #studyChecklist label > span { margin-left: 2rem; }
+      #travelChecklist label { align-items: flex-start; }
+      #travelChecklist label input { flex-shrink: 0; margin-top: 2px; }
+      #legalModal { padding: max(10px, env(safe-area-inset-top, 0px)) 10px max(10px, env(safe-area-inset-bottom, 0px)); }
+      #legalModal .luminote-legal-panel { border-radius: 18px; }
+      #legalModal [data-legal-tab] { min-height: 44px; }
+      #toastBox { bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+      #mobileLaunchBar { padding-bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+    }
+    @media (max-width: 359px) {
+      #heroMetrics { grid-template-columns: minmax(0, 1fr); }
+      #previewModeTabs button { font-size: 11px; }
+      #mobileLaunchBar .dock-subtitle { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto !important; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
 </head>
 
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 font-sans antialiased selection:bg-indigo-500 selection:text-white overflow-x-hidden transition-colors duration-300">
@@ -98,7 +147,7 @@
       </div>
 
       <!-- 모바일 드롭다운 메뉴 -->
-      <div id="mobileMenu" class="hidden lg:hidden pb-4 pt-2 border-t border-slate-200/70 dark:border-slate-800/70 space-y-1">
+      <div id="mobileMenu" aria-label="모바일 사이트 메뉴" class="hidden lg:hidden pb-4 pt-2 border-t border-slate-200/70 dark:border-slate-800/70 space-y-1">
         <a href="#highlights" class="mobile-nav-link block px-4 py-3 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">핵심 강점 5가지</a>
         <a href="#preview" class="mobile-nav-link block px-4 py-3 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">인터랙티브 기능 체험</a>
         <a href="#special" class="mobile-nav-link block px-4 py-3 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">차별화된 특별 기능</a>
@@ -179,7 +228,7 @@
         </div>
 
         <!-- 핵심 요약 4대 지표 카드 -->
-        <div class="mt-12 max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 text-left">
+        <div id="heroMetrics" class="mt-12 max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 text-left">
           <div class="p-4 sm:p-5 rounded-2xl bg-white/85 dark:bg-slate-900/75 border border-slate-200/80 dark:border-slate-800 shadow-soft">
             <span class="text-xl">✏️</span>
             <p class="mt-2 text-sm sm:text-base font-extrabold text-slate-900 dark:text-white">스마트 디지털 필기</p>
@@ -283,7 +332,7 @@
           </p>
 
           <!-- 3-in-1 모드 전환 탭 -->
-          <div class="mt-6 inline-flex flex-wrap justify-center gap-1 p-1.5 rounded-2xl bg-slate-200/70 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700">
+          <div id="previewModeTabs" role="tablist" aria-label="LumiNote 기능 체험 모드" class="mt-6 inline-flex flex-wrap justify-center gap-1 p-1.5 rounded-2xl bg-slate-200/70 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700">
             <button id="tabNoteBtn" type="button" onclick="switchPreviewMode('note')" class="px-4 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm">
               ✏️ 스마트 필기 &amp; 카드
             </button>
@@ -756,7 +805,7 @@
           </div>
 
           <!-- 목록 필터 탭 -->
-          <div class="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 self-start md:self-auto">
+          <div id="specTabNav" role="tablist" aria-label="기능 상세 목록" class="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 self-start md:self-auto">
             <button id="specTabBasic" type="button" onclick="switchSpecTab('basic')" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm transition-all">
               기본 필기·노트 관리 (14)
             </button>
@@ -1039,10 +1088,21 @@
   <!-- ===================================================================== -->
   <!-- 약관 및 정책 모달 (개인정보처리방침 / 이용약관 / 저작권 / 쿠키·면책)     -->
   <!-- ===================================================================== -->
+
+  <!-- Safe-area aware, touch-friendly mobile launch dock -->
+  <div id="mobileLaunchBar" class="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/50 dark:border-slate-700/70 bg-white/85 dark:bg-slate-950/85 backdrop-blur-xl px-4 pt-3 shadow-[0_-8px_35px_rgba(15,23,42,0.08)]" aria-label="LumiNote 모바일 바로가기">
+    <div class="mx-auto max-w-lg flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="text-sm font-extrabold text-slate-900 dark:text-white">✦ LumiNote <span class="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">v1.18</span></div>
+        <div class="dock-subtitle text-[11px] text-slate-500 dark:text-slate-400">Study · Plan · Travel</div>
+      </div>
+      <a href="https://luminote-study-travel.appledoyun09.chatgpt.site/" target="_blank" rel="noopener noreferrer" class="shrink-0 inline-flex items-center justify-center min-h-[46px] px-5 rounded-2xl font-bold text-sm text-white bg-gradient-to-r from-indigo-600 to-violet-600 shadow-lg shadow-indigo-500/25 active:scale-[.97] transition-transform">LumiNote 시작하기 ↗</a>
+    </div>
+  </div>
   <div id="legalModal" role="dialog" aria-modal="true" aria-labelledby="legalModalTitle" class="hidden fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
     <div onclick="closeLegalModal()" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity"></div>
 
-    <div class="relative z-10 w-full max-w-3xl max-h-[88vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+    <div class="luminote-legal-panel relative z-10 w-full max-w-3xl max-h-[88vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
       <!-- 모달 헤더 -->
       <div class="flex items-center justify-between px-5 sm:px-7 py-4 sm:py-5 border-b border-slate-200 dark:border-slate-800">
         <div>
@@ -1393,6 +1453,8 @@ Study. Plan. Travel. All in LumiNote.
           }
         });
 
+        Object.entries(tabs).forEach(([key, btn]) => { if (btn) btn.setAttribute('aria-selected', String(key === mode)); });
+
         if (badge && badgeConfigs[mode]) {
           badge.textContent = badgeConfigs[mode].text;
           badge.className = badgeConfigs[mode].cls;
@@ -1524,6 +1586,8 @@ Study. Plan. Travel. All in LumiNote.
         const activeCls = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm transition-all';
         const inactiveCls = 'px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all';
 
+        basicBtn?.setAttribute('aria-selected', String(tab === 'basic'));
+        settingsBtn?.setAttribute('aria-selected', String(tab === 'settings'));
         if (tab === 'basic') {
           basicContent.classList.remove('hidden');
           settingsContent.classList.add('hidden');
@@ -1560,17 +1624,21 @@ Study. Plan. Travel. All in LumiNote.
     /**
      * 약관 및 정책 모달 열기/닫기/탭 전환
      */
+    let legalReturnFocus = null;
     function openLegalModal(tabKey = 'privacy') {
       try {
         const modal = document.getElementById('legalModal');
         if (!modal) return;
+        legalReturnFocus = document.activeElement;
         switchLegalTab(tabKey);
         modal.classList.remove('hidden');
         document.body.classList.add('overflow-hidden');
+        modal.querySelector('[aria-label="모달 닫기"]')?.focus({ preventScroll: true });
 
         const mobileMenu = document.getElementById('mobileMenu');
         if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
           mobileMenu.classList.add('hidden');
+          document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', 'false');
         }
       } catch (err) {
         console.error('약관 모달 열기 오류:', err);
@@ -1580,9 +1648,11 @@ Study. Plan. Travel. All in LumiNote.
     function closeLegalModal() {
       try {
         const modal = document.getElementById('legalModal');
-        if (!modal) return;
+        if (!modal || modal.classList.contains('hidden')) return;
         modal.classList.add('hidden');
         document.body.classList.remove('overflow-hidden');
+        if (legalReturnFocus?.isConnected) legalReturnFocus.focus({ preventScroll: true });
+        legalReturnFocus = null;
       } catch (err) {
         console.error('약관 모달 닫기 오류:', err);
       }
@@ -1648,24 +1718,55 @@ Study. Plan. Travel. All in LumiNote.
           mobileMenuBtn.addEventListener('click', () => {
             const isHidden = mobileMenu.classList.toggle('hidden');
             mobileMenuBtn.setAttribute('aria-expanded', String(!isHidden));
+            mobileMenuBtn.setAttribute('aria-label', isHidden ? '모바일 메뉴 열기' : '모바일 메뉴 닫기');
           });
 
           document.querySelectorAll('.mobile-nav-link').forEach((link) => {
             link.addEventListener('click', () => {
               mobileMenu.classList.add('hidden');
               mobileMenuBtn.setAttribute('aria-expanded', 'false');
+              mobileMenuBtn.setAttribute('aria-label', '모바일 메뉴 열기');
             });
           });
         }
 
-        // ESC 키로 약관 모달 닫기
+        // 모바일 메뉴 외부 탭/터치 및 화면 회전 시 메뉴 닫기
+        const closeMobileMenu = () => {
+          if (!mobileMenu || !mobileMenuBtn) return;
+          mobileMenu.classList.add('hidden');
+          mobileMenuBtn.setAttribute('aria-expanded', 'false');
+          mobileMenuBtn.setAttribute('aria-label', '모바일 메뉴 열기');
+        };
+        document.addEventListener('click', (event) => {
+          if (mobileMenu && !mobileMenu.classList.contains('hidden') &&
+              !mobileMenu.contains(event.target) && !mobileMenuBtn.contains(event.target)) closeMobileMenu();
+        });
+        window.addEventListener('resize', () => { if (window.innerWidth >= 1024) closeMobileMenu(); });
+
+        // 모달의 키보드 포커스를 내부에 유지하여 모바일 보조 기술 지원
         document.addEventListener('keydown', (e) => {
+          const modal = document.getElementById('legalModal');
+          const isModalOpen = modal && !modal.classList.contains('hidden');
           if (e.key === 'Escape') {
-            closeLegalModal();
+            if (isModalOpen) closeLegalModal();
+            else closeMobileMenu();
+          }
+          if (e.key === 'Tab' && isModalOpen) {
+            const targets = [...modal.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.getClientRects().length > 0);
+            if (targets.length) {
+              const first = targets[0], last = targets[targets.length - 1];
+              if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+              else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            }
           }
         });
 
-        // 초기 암기 카드 렌더링
+        // 초기 접근성 탭 상태 및 암기 카드 렌더링
+        document.getElementById('tabNoteBtn')?.setAttribute('aria-selected', 'true');
+        document.getElementById('tabStudyBtn')?.setAttribute('aria-selected', 'false');
+        document.getElementById('tabTravelBtn')?.setAttribute('aria-selected', 'false');
+        document.getElementById('specTabBasic')?.setAttribute('aria-selected', 'true');
+        document.getElementById('specTabSettings')?.setAttribute('aria-selected', 'false');
         renderFlashcard();
       } catch (err) {
         console.error('앱 초기화 오류:', err);
